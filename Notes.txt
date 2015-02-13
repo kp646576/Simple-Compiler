@@ -1,0 +1,22 @@
+23.6e-8 is one token?
+
+One big parse tree or multiple?
+
+Do we need a parse tree? Is it for later assigments?
+
+Need to use symbol table?
+
+()()
+(())
+
+Error
+)
+
+Error
+(
+
+Error
+())
+
+Error
+()(
