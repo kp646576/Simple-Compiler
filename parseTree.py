@@ -29,3 +29,4 @@ class ParseTree:
         self.currentNode = rootNode
         self.currentChild = [-1]
         self.currentChildCount = [rootNode.getChildCount()]
+    
