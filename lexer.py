@@ -44,7 +44,6 @@ class Lexer:
             elif isAlpha(cur) or cur == '_':
                 self.idFSA(cur)
             else:
-                print "cur ", cur
                 self.otherFSA(cur)
 
         return
@@ -58,14 +57,14 @@ class Lexer:
                 peek = self.scanner.read()
                 while isDigit(peek):
                     n +=  peek
-                self.tokens.append(Token(self.line, 'float', n))
+                self.tokens.append(Token(self.line, 'real', n))
         else:
             # Get digits before '.'
             while isDigit(peek):
                 n += peek
                 peek = self.scanner.read()
 
-            # Is float
+            # Is real
             if peek == '.':
                 n += peek
                 peek = self.scanner.read()
@@ -83,7 +82,7 @@ class Lexer:
                     while isDigit(peek):
                         n += peek
                         peek = self.scanner.read()
-                self.tokens.append(Token(self.line, 'float', n))
+                self.tokens.append(Token(self.line, 'real', n))
             elif peek == 'e':
                 n += peek
                 peek = self.scanner.read()
@@ -95,7 +94,7 @@ class Lexer:
                 while isDigit(peek):
                     n += peek
                     peek = self.scanner.read()
-                self.tokens.append(Token(self.line, 'float', n))
+                self.tokens.append(Token(self.line, 'real', n))
             # Is int
             else:
                 self.tokens.append(Token(self.line, 'int', n))
@@ -121,12 +120,10 @@ class Lexer:
 
     def idFSA(self, c):
         peek = self.scanner.read()
-        print "PEEK = ", peek
-        if peek:
-            # error when not num alph or _
-            while peek and (isAlpha(peek) or isDigit(peek) or peek == '_'):
-                c += peek
-                peek = self.scanner.read()
+        # error when not num alph or _
+        while peek and (isAlpha(peek) or isDigit(peek) or peek == '_'):
+            c += peek
+            peek = self.scanner.read()
 
         if peek == ' ' or peek == '\n' or isKeyword(peek):
             keyword = valKeyword(c)
@@ -142,7 +139,6 @@ class Lexer:
 
     def otherFSA(self, c):
         peek = self.scanner.read()
-        print "OTHER peek ", peek
         if peek:
             k1 = valKeyword(c)
             len2 = c + peek

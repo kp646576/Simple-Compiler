@@ -1,0 +1,23 @@
+false
+true
+(- (<= 32 (- 4)) guile )
+(- guile (<= 32 (- 4)))
+(- ( - foo) (:= cool 38))
+(- foo 34)
+(- foo bar)
+(- blah)
+:=
+(- 45 3)
+(- 4)
+(+ 34 5)
+
+
+error
+(- foo bar baz)
+
+:=
+(:= * )
+(:= grass while)
+(:= cat 33 gracie)
+(:= if 84)
+(:= 64 84)

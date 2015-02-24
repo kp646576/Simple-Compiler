@@ -1,0 +1,4 @@
+(if "hello" "good")
+(if 23 "glad" 66.0)
+(stdout 2)
+(stdout (:= hooha 90))

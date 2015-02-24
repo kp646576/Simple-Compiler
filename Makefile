@@ -1,7 +1,20 @@
+PY = python
+PROFTEST = proftest.in
+TDIR = ./tests
+DRIVER = main.py
+
 default:
-	python main.py > stutest.out
-	cat stutest.out
+	for prof in proftest*; do \
+		$(PY) $(DRIVER) $$prof; \
+	done
+
+stutest.out:
+	for test in $(TDIR)/*.txt; do \
+		$(PY) $(DRIVER) $$test; \
+	done
+
+proftest.out: $(PROFTEST)
+	$(PY) $(DRIVER) $(PROFTEST)
 
 clean:
-	rm -f stutest.out
 	rm -f *.pyc

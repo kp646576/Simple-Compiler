@@ -5,8 +5,9 @@ symbolTable = {
     'or'    : 'bop',
     'not'   : 'uop',
 
+    '-' : 'op',
+
     '+' : 'bop',
-    '-' : 'bop',
     '*' : 'bop',
     '/' : 'bop',
     '%' : 'bop',
