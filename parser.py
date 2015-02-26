@@ -1,8 +1,10 @@
 from token import Token
 from lexer import Lexer
+from gforthTable import gforthTable as gt
 import sys
 
 debugOn = False
+treeOn = False
 
 def debug(on, msg):
     if on:
@@ -22,7 +24,9 @@ class Parser:
         else:
             self.error()
         self.tab = '    '
+        print ": milestone4",
         self.S(0)
+        print ";"
 
     # S   -> (S'S'' | exprS''
     # S'  -> )      | S)
@@ -45,7 +49,7 @@ class Parser:
                     self.error()
             # (S'S''
             else:
-                print d * self.tab + '('
+                debug(debugOn, d * self.tab + '(')
                 self.getNextToken()
                 self.SP(d)
                 self.SPP(d)
@@ -64,7 +68,7 @@ class Parser:
             debug(debugOn, ">> SP: " + self.curToken.value)
         # S) and )
         if self.curToken.value == ')':
-            print d * self.tab + ')'
+            debug(debugOn, d * self.tab + ')')
             self.getNextToken()
         else:
             self.error()
@@ -84,26 +88,36 @@ class Parser:
     def oper(self, d):
         if self.curToken.value:
             if self.curToken.value == '(':
-                print d * self.tab + '('
+                debug(debugOn, d * self.tab + '(')
                 self.getNextToken()
-                self.operP(d + 1)
+                opP = self.operP(d + 1)
                 if self.curToken.value == ')':
-                    print d * self.tab + self.curToken.value
+                    debug(debugOn, d * self.tab + self.curToken.value)
                     self.getNextToken()
                 else:
                     # catch cases like (:= cat 33 charlie)
                     self.error()
+                return opP
             elif self.isTerminal(self.curToken.id):
-                print d * self.tab + self.curToken.value
+                # detect if floating point value
+                debug(debugOn, d * self.tab + self.curToken.value)
+                # Guarding against adding e to values like 2e10
+                if self.curToken.id == "real" and 'e' not in self.curToken.value:
+                    print self.curToken.value + 'e',
+                else:
+                    print self.curToken.value,
+                cur = self.curToken
                 self.getNextToken()
+                return cur.id
             else:
                 self.error()
         else:
             self.error()
 
+    # Converted to postfix
     def operP(self, d):
         if self.curToken.id == 'assign':
-            print d * self.tab + self.curToken.value
+            assign = self.curToken.value
             self.getNextToken()
             if self.curToken.id == 'id':
                 print d * self.tab + self.curToken.value
@@ -111,25 +125,40 @@ class Parser:
                 self.oper(d)
             else:
                 self.error()
-
+            print d * self.tab + assign
         # Need to deal with - separately
         elif self.curToken.id == 'op':
-            print d * self.tab + self.curToken.value
+            op = self.curToken.value
             self.getNextToken()
-            self.oper(d)
+            op1 = self.oper(d)
+
+            debug(debugOn, d * self.tab + op)
+
             # (binop, unop, := ) or constants, name
             if (self.curToken.value == '(' and self.isOper(self.peekToken.id) or self.isTerminal(self.curToken.id)):
-                self.oper(d)
+                op2 = self.oper(d)
+                debug(debugOn, d * self.tab + op)
+                return self.gforthFloats(op1, op2, op)
+            else:
+                return self.gforthInts(op1, op)
+
         elif self.curToken.id == 'bop':
-            print d * self.tab + self.curToken.value
+            bop = self.curToken.value
             self.getNextToken()
-            self.oper(d)
-            # need to get token?
-            self.oper(d)
+            # terminal or expression
+            op1 = self.oper(d)
+            op2 = self.oper(d)
+            debug(debugOn, "op1:" + str(op1) + " op2:" + str(op2))
+            #print "\nop1:" + str(op1) + " op2:" + str(op2)
+            debug(debugOn, d * self.tab + bop)
+            # if int float or float int
+            return self.gforthFloats(op1, op2, bop)
         elif self.curToken.id == 'uop':
-            print d * self.tab + self.curToken.value
+            uop = self.curToken.value
             self.getNextToken()
-            self.oper(d)
+            op1 = self.oper(d)
+            debug(debugOn, d * self.tab + uop)
+            return self.gforthInts(op1, uop)
         else:
             self.error()
 
@@ -137,12 +166,12 @@ class Parser:
     # stmts -> ifstmts | whilestmts | letstmts | printsmts
     def stmts(self, d):
         if self.curToken.value == '(':
-            print d * self.tab + self.curToken.value
+            debug(debugOn, d * self.tab + self.curToken.value)
             self.getNextToken()
             self.stmtsP(d + 1)
             debug(debugOn, ">> stmts -> curToken = " + self.curToken.value)
             if self.curToken.value == ')':
-                print d * self.tab + self.curToken.value
+                debug(debugOn, d * self.tab + self.curToken.value)
                 self.getNextToken()
             else:
                 self.error
@@ -152,15 +181,19 @@ class Parser:
     def stmtsP(self, d):
         # ifstmts -> (if expr expr) | (if expr exp expr)
         if self.curToken.value == 'if':
-            print d * self.tab + self.curToken.value
+            ifToken = self.curToken.value
             self.getNextToken()
             self.expr(d)
+            debug(debugOn, d * self.tab + ifToken)
+            print ifToken,
             self.expr(d)
             if self.curToken.value and self.curToken.value != ')':
+                print 'else',
                 self.expr(d)
             # Error if more than 3 args
             if self.curToken.value and self.curToken.value != ')':
                 self.error()
+            print 'endif',
         elif self.curToken.value == 'while':
             print d * self.tab + self.curToken.value
             self.getNextToken()
@@ -235,6 +268,23 @@ class Parser:
         else:
             self.error()
 
+    def gforthInts(self, op1, uop):
+        # print '\nuop:' + str(op1)
+        if op1 == 'real':
+            print gt[uop],
+        else:
+            print uop,
+        return op1
+    def gforthFloats(self, op1, op2, bop):
+        if (op1 == 'int' and op2 == 'real') or (op1 == 'real' and op2 == 'int'):
+            print 's>f ' + gt[bop],
+            return 'real'
+        elif op1 == 'real' and op2 == 'real':
+            print gt[bop],
+            return 'real'
+        else:
+            print bop,
+            return 'int'
 
     def isOper(self, id):
         return True if id in ['assign', 'bop', 'uop', 'op'] else False
