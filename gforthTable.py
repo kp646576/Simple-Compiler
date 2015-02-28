@@ -2,6 +2,9 @@ gforthTable = {
     # Unary
     'not'   : '!',
 
+    # Binary
+    '!='    : '<>',
+
     # Floating Point
     '^'     : 'f**',
     'sin'   : 'fsin',
@@ -9,7 +12,7 @@ gforthTable = {
     'tan'   : 'ftan',
     '*'     : 'f*',
     '/'     : 'f/',
-    '%'     : 'mod',
+    '%'     : 'fmod',
     '+'     : 'f+',
     '-'     : 'f-',
 

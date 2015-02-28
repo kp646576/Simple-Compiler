@@ -104,6 +104,8 @@ class Parser:
                 # Guarding against adding e to values like 2e10
                 if self.curToken.id == "real" and 'e' not in self.curToken.value:
                     print self.curToken.value + 'e',
+                elif self.curToken.id == 'string':
+                    print 's\" ' + self.curToken.value[1:],
                 else:
                     print self.curToken.value,
                 cur = self.curToken
@@ -152,16 +154,15 @@ class Parser:
             #print "\nop1:" + str(op1) + " op2:" + str(op2)
             debug(debugOn, d * self.tab + bop)
             # if int float or float int
-            return self.gforthFloats(op1, op2, bop)
+            return self.gforthBOPS(op1, op2, bop)
         elif self.curToken.id == 'uop':
             uop = self.curToken.value
             self.getNextToken()
             op1 = self.oper(d)
             debug(debugOn, d * self.tab + uop)
-            return self.gforthInts(op1, uop)
+            return self.gforthUOPS(op1, uop)
         else:
             self.error()
-
 
     # stmts -> ifstmts | whilestmts | letstmts | printsmts
     def stmts(self, d):
@@ -210,9 +211,10 @@ class Parser:
             else:
                 self.error
         elif self.curToken.value == 'stdout':
-            print d * self.tab + self.curToken.value
+            debug (debugOn, d * self.tab + self.curToken.value)
             self.getNextToken()
-            self.oper(d)
+            id = self.oper(d)
+            self.gforthSTDOUT(id)
             if self.curToken.value and self.curToken.value != ')':
                 self.error()
         else:
@@ -245,8 +247,6 @@ class Parser:
         else:
             self.error()
 
-
-
     def exprlist(self, d):
         # expr
         self.expr(d)
@@ -268,23 +268,53 @@ class Parser:
         else:
             self.error()
 
-    def gforthInts(self, op1, uop):
+    def gforthUOPS(self, op1, uop):
         # print '\nuop:' + str(op1)
-        if op1 == 'real':
+        if op1 == 'real' or uop in gt:
             print gt[uop],
         else:
             print uop,
         return op1
-    def gforthFloats(self, op1, op2, bop):
-        if (op1 == 'int' and op2 == 'real') or (op1 == 'real' and op2 == 'int'):
+
+    def gforthBOPS(self, op1, op2, bop):
+        if op1 == 'int' and op2 == 'int':
+            # Don't change if-else orderings
+            # Case where % is different for ints and floats
+            if bop == '%':
+                print 'mod',
+            elif bop == '^':
+                print 's>f s>f fswap f** f>s',
+            elif bop == "!=":
+                print gt[bop],
+            else:
+                print bop,
+            return int
+        elif op1 == 'int' and op2 == 'real':
+            print 's>f fswap ' + gt[bop],
+            return 'real'
+        elif op1 == 'real' and op2 == 'int':
             print 's>f ' + gt[bop],
             return 'real'
         elif op1 == 'real' and op2 == 'real':
             print gt[bop],
             return 'real'
+        elif op1 == 'string' and op2 == 'string':
+            if bop != '+':
+                self.error()
+            else:
+                print 's+',
+            return 'string'
         else:
             print bop,
-            return 'int'
+            return op1
+
+    def gforthSTDOUT(self, op1):
+        if op1 == 'int':
+            print '.',
+        elif op1 =='real':
+            print 'f.',
+        elif op1 == 'string':
+            print 'type',
 
     def isOper(self, id):
         return True if id in ['assign', 'bop', 'uop', 'op'] else False
