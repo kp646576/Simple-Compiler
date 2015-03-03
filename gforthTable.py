@@ -1,6 +1,6 @@
 gforthTable = {
     # Unary
-    'not'   : '!',
+    'not'   : '0=',
 
     # Binary
     '!='    : '<>',

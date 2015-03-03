@@ -140,9 +140,10 @@ class Parser:
             if (self.curToken.value == '(' and self.isOper(self.peekToken.id) or self.isTerminal(self.curToken.id)):
                 op2 = self.oper(d)
                 debug(debugOn, d * self.tab + op)
-                return self.gforthFloats(op1, op2, op)
+                return self.gforthBOPS(op1, op2, op)
             else:
-                return self.gforthInts(op1, op)
+                print '0 swap',
+                return self.gforthUOPS(op1, op)
 
         elif self.curToken.id == 'bop':
             bop = self.curToken.value
@@ -270,7 +271,14 @@ class Parser:
 
     def gforthUOPS(self, op1, uop):
         # print '\nuop:' + str(op1)
-        if op1 == 'real' or uop in gt:
+        if (uop == 'sin' or uop == 'cos' or uop == 'tan') and op1 != 'real':
+            print 's>f ' + gt[uop],
+        elif op1 == 'real':
+            if uop == 'not':
+                print 'f' + gt[uop],
+            else:
+                print gt[uop],
+        elif uop == 'not':
             print gt[uop],
         else:
             print uop,
