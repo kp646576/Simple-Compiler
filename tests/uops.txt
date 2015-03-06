@@ -1,0 +1,1 @@
+(stdout (+ (sin (- 0)) (cos 0e)))

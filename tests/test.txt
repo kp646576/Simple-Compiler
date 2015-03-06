@@ -1,35 +1,4 @@
-
-(let ((get bool) (_hello int) )
-:=
-error
-(let ((get bool) (34 int)) )
-:=
-((if (let (get bool) (hi int) (goodies string) (trash real)) (stdout (:= cool (- 34)) ))
-:=
-(while 34 53 (cos 3) (tan 34) ())
-
-(while 45 34 2)
-
-(if "bing" 45 43.0e10)
-(if "bing" 45)
-
-:=
-
-(- (<= 32 (- 4)) guile )
-(stdout (:= cool (- 34))
-(stdout college)
-(stdout 4)
-
-error
-(if (stdout 4) (stdout (:= cool (- 34)) 56 "hi")
-
-
-error
-(if "bing" 45 43.0e10 otherstuffs)
-
-error
-if blah blah
-
-error
-(stdout bool)
-(stdout if)
+bops = 16.
+if = -1 3
+stdout = 4.2 3 helloworld!
+uops = 1.
