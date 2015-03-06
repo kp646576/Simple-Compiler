@@ -7,7 +7,7 @@ def main():
     print '-----------------Tokens-----------------'
     for i in l.tokens:
         i.printToken()
-    print '---------------Parse Tree---------------'
+    print '-----------------Gforth-----------------'
     p = Parser(l)
     print '------------------Done------------------'
 

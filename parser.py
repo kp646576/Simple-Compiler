@@ -273,6 +273,7 @@ class Parser:
         # print '\nuop:' + str(op1)
         if (uop == 'sin' or uop == 'cos' or uop == 'tan') and op1 != 'real':
             print 's>f ' + gt[uop],
+            return 'real'
         elif op1 == 'real':
             if uop == 'not':
                 print 'f' + gt[uop],
@@ -293,19 +294,36 @@ class Parser:
             elif bop == '^':
                 print 's>f s>f fswap f** f>s',
             elif bop == "!=":
-                print gt[bop],
+                print '<>',
             else:
                 print bop,
-            return int
+            return 'int'
+        elif bop == 'and' or bop == 'or':
+            if op1 == 'int' and op2 == 'real':
+                print 'f>s ' + bop,
+            elif op1 == 'real' and op2 == 'int':
+                print 'f>s fswap ' + bop,
+            elif op1 == 'real' and op2 == 'real':
+                print 'f>s f>s fswap ' + bop,
+            return 'int'
         elif op1 == 'int' and op2 == 'real':
             print 's>f fswap ' + gt[bop],
-            return 'real'
+            if self.isRelational(bop):
+                return 'int'
+            else:
+                return 'real'
         elif op1 == 'real' and op2 == 'int':
             print 's>f ' + gt[bop],
-            return 'real'
+            if self.isRelational(bop):
+                return 'int'
+            else:
+                return 'real'
         elif op1 == 'real' and op2 == 'real':
             print gt[bop],
-            return 'real'
+            if self.isRelational(bop):
+                return 'int'
+            else:
+                return 'real'
         elif op1 == 'string' and op2 == 'string':
             if bop != '+':
                 self.error()
@@ -323,6 +341,9 @@ class Parser:
             print 'f.',
         elif op1 == 'string':
             print 'type',
+
+    def isRelational(self, bop):
+        return True if bop in ['=', '<', '<=', '>', '>=', '!='] else False
 
     def isOper(self, id):
         return True if id in ['assign', 'bop', 'uop', 'op'] else False
