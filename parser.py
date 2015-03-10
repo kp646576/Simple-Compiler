@@ -204,11 +204,13 @@ class Parser:
             self.exprlist(d)
         # letstmts -> let( (varlist) )
         elif self.curToken.value == 'let':
-            print d * self.tab + self.curToken.value
+            # print d * self.tab + self.curToken.value
             self.getNextToken()
             if self.curToken.value == '(':
                 self.getNextToken()
                 self.varlist(d)
+                if self.curToken.value == ')':
+                    self.getNextToken()
             else:
                 self.error
         elif self.curToken.value == 'stdout':
@@ -224,16 +226,19 @@ class Parser:
     # varlist -> (name type) | (name type) varlist
     def varlist(self, d):
         if self.curToken.value == '(':
-            print d * self.tab + self.curToken.value
+            #print d * self.tab + self.curToken.value
             self.getNextToken()
             if self.curToken.id == 'id':
-                print (d + 1) * self.tab + self.curToken.value
+                #print (d + 1) * self.tab + self.curToken.value
+                var = self.curToken.value
                 self.getNextToken()
                 if self.isType(self.curToken.value):
-                    print (d + 1) * self.tab + self.curToken.value
+                    #print (d + 1) * self.tab + self.curToken.value
+                    varType = self.curToken.value
+                    self.gforthInitVar(var, varType)
                     self.getNextToken()
                     if self.curToken.value == ')':
-                        print d * self.tab + self.curToken.value
+                        #print d * self.tab + self.curToken.value
                         self.getNextToken()
                         debug(debugOn, ">> varlist: " + self.curToken.value)
                         if self.curToken.value == '(' and self.peekToken.id == 'id':
@@ -247,6 +252,15 @@ class Parser:
                 self.error()
         else:
             self.error()
+
+    def gforthInitVar(self, var, varType):
+        if varType == 'int' or varType == 'string':
+            print 'variable ' + var,
+        elif varType == 'real':
+            print 'fvariable ' + var,
+        else:
+            self.error()
+
 
     def exprlist(self, d):
         # expr
@@ -268,6 +282,11 @@ class Parser:
             self.stmts(d)
         else:
             self.error()
+
+
+
+
+
 
     def gforthUOPS(self, op1, uop):
         # print '\nuop:' + str(op1)
