@@ -1,6 +1,7 @@
 from token import Token
 from lexer import Lexer
 from gforthTable import gforthTable as gt
+from gforthTable import varTable as vt
 import sys
 
 debugOn = False
@@ -16,6 +17,7 @@ class Parser:
         self.curToken = Token(0, '', '')
         self.peekToken = Token(0, '', '')
         self.tokenIdx = 1
+        self.prefix = 'kp'
         if len(self.tokens) == 1:
             self.curToken = self.tokens[0]
         elif len(self.tokens) > 1:
@@ -24,9 +26,9 @@ class Parser:
         else:
             self.error()
         self.tab = '    '
-        print ": milestone4",
+        #print ": milestone4",
         self.S(0)
-        print ";"
+        print ""
 
     # S   -> (S'S'' | exprS''
     # S'  -> )      | S)
@@ -97,17 +99,23 @@ class Parser:
                 else:
                     # catch cases like (:= cat 33 charlie)
                     self.error()
+
+                # What is this returning?
                 return opP
+
+
             elif self.isTerminal(self.curToken.id):
                 # detect if floating point value
-                debug(debugOn, d * self.tab + self.curToken.value)
+                # debug(debugOn, d * self.tab + self.curToken.value)
                 # Guarding against adding e to values like 2e10
+
                 if self.curToken.id == "real" and 'e' not in self.curToken.value:
                     print self.curToken.value + 'e',
                 elif self.curToken.id == 'string':
                     print 's\" ' + self.curToken.value[1:],
                 else:
                     print self.curToken.value,
+
                 cur = self.curToken
                 self.getNextToken()
                 return cur.id
@@ -122,12 +130,16 @@ class Parser:
             assign = self.curToken.value
             self.getNextToken()
             if self.curToken.id == 'id':
-                print d * self.tab + self.curToken.value
+                #print d * self.tab + self.curToken.value
+                var = self.curToken.value
                 self.getNextToken()
-                self.oper(d)
+                # self.oper(d)
+                # Remove self.oper(d) above and replace with below
+
+                self.gforthSetVar(var, self.oper(d).value)
             else:
                 self.error()
-            print d * self.tab + assign
+            #print d * self.tab + assign
         # Need to deal with - separately
         elif self.curToken.id == 'op':
             op = self.curToken.value
@@ -171,7 +183,7 @@ class Parser:
             debug(debugOn, d * self.tab + self.curToken.value)
             self.getNextToken()
             self.stmtsP(d + 1)
-            debug(debugOn, ">> stmts -> curToken = " + self.curToken.value)
+            # debug(debugOn, ">> stmts -> curToken = " + self.curToken.value)
             if self.curToken.value == ')':
                 debug(debugOn, d * self.tab + self.curToken.value)
                 self.getNextToken()
@@ -197,11 +209,14 @@ class Parser:
                 self.error()
             print 'endif',
         elif self.curToken.value == 'while':
-            print d * self.tab + self.curToken.value
+            # print d * self.tab + self.curToken.value
+            stmt = self.curToken.value
+            print ': {0}{1} begin'.format(self.prefix, stmt),
             self.getNextToken()
             self.expr(d)
-            debug(debugOn, ">> while -> expr ->")
+            print 'while',
             self.exprlist(d)
+            print 'repeat ; {0}{1}'.format(self.prefix, stmt),
         # letstmts -> let( (varlist) )
         elif self.curToken.value == 'let':
             # print d * self.tab + self.curToken.value
@@ -214,7 +229,7 @@ class Parser:
             else:
                 self.error
         elif self.curToken.value == 'stdout':
-            debug (debugOn, d * self.tab + self.curToken.value)
+            #debug (debugOn, d * self.tab + self.curToken.value)
             self.getNextToken()
             id = self.oper(d)
             self.gforthSTDOUT(id)
@@ -254,12 +269,25 @@ class Parser:
             self.error()
 
     def gforthInitVar(self, var, varType):
-        if varType == 'int' or varType == 'string':
-            print 'variable ' + var,
-        elif varType == 'real':
-            print 'fvariable ' + var,
+        if var and self.isType(varType):
+            if varType == 'real':
+                print gt[varType]['init'] + var,
+            else:
+                print gt['init'] + var,
+            # Add variable to variable table
+            vt[var] = [varType, '']
         else:
-            self.error()
+            self.error('var undefined and/or varType not legal type')
+
+    def gforthSetVar(self, var, value):
+        if var in vt:
+            vt[var][1] = value
+            if vt[var][0] == 'real':
+                print var + ' ' + gt[varType]['assign'],
+            else:
+                print var + ' ' + gt['assign'],
+        else:
+            self.error('variable ' + var + ' not in vt (not initialized)')
 
 
     def exprlist(self, d):
@@ -282,11 +310,6 @@ class Parser:
             self.stmts(d)
         else:
             self.error()
-
-
-
-
-
 
     def gforthUOPS(self, op1, uop):
         # print '\nuop:' + str(op1)
@@ -373,8 +396,8 @@ class Parser:
     def isType(self, value):
         return True if value in ['bool', 'int', 'real', 'string'] else False
 
-    def error(self):
-        print >> sys.stderr,"Parser error line: " + str(self.curToken.line) + ' token value: ' + str(self.curToken.value)
+    def error(self, msg=''):
+        print >> sys.stderr, 'parser error line: ' + str(self.curToken.line) + ' token value: ' + str(self.curToken.value) + ' msg: ' + msg
         sys.exit(0)
 
     def getNextToken(self):
