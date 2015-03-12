@@ -4,12 +4,18 @@ from gforthTable import gforthTable as gt
 from gforthTable import varTable as vt
 import sys
 
-debugOn = False
-treeOn = False
+# Constants for controlling output
+GFORTH = 0
+GFORTH_DEBUG = 1
+PARSETREE = 2
+PARSETREE_DEBUG = 3
 
-def debug(on, msg):
-    if on:
-        print msg
+# Current display setting
+DISPLAY = GFORTH
+
+def display(msg, n=0):
+    if n == DISPLAY:
+        print msg,
 
 class Parser:
     def __init__(self, lexer):
@@ -43,15 +49,15 @@ class Parser:
                     self.error()
             # exprS'' stmt starting with '('
             elif self.peekToken.value and self.peekToken.id == 'stmt':
-                debug(debugOn, '>> S -> stmts')
+                display('>> S -> stmts', PARSETREE_DEBUG)
                 self.stmts(d)
-                debug(debugOn, '>> S -> SPP')
+                display('>> S -> SPP', PARSETREE_DEBUG )
                 self.SPP(d)
                 if self.curToken.value:
                     self.error()
             # (S'S''
             else:
-                debug(debugOn, d * self.tab + '(')
+                display(d * self.tab + '(', PARSETREE_DEBUG)
                 self.getNextToken()
                 self.SP(d)
                 self.SPP(d)
@@ -67,10 +73,10 @@ class Parser:
         # S)
         if self.curToken.value and self.curToken.value != ')':
             self.S(d + 1)
-            debug(debugOn, ">> SP: " + self.curToken.value)
+            display(">> SP: " + self.curToken.value, PARSETREE_DEBUG)
         # S) and )
         if self.curToken.value == ')':
-            debug(debugOn, d * self.tab + ')')
+            display(d * self.tab + ')', PARSETREE)
             self.getNextToken()
         else:
             self.error()
@@ -79,7 +85,7 @@ class Parser:
     def SPP(self, d):
         # SS''
         if self.curToken.value == '(' or self.isTerminal(self.curToken.id):
-            debug(debugOn, ">> SPP " + self.curToken.value)
+            display(">> SPP " + self.curToken.value, PARSETREE_DEBUG )
             self.S(d)
             self.SPP(d)
         # epsilon
@@ -90,11 +96,11 @@ class Parser:
     def oper(self, d):
         if self.curToken.value:
             if self.curToken.value == '(':
-                debug(debugOn, d * self.tab + '(')
+                display(d * self.tab + '(', PARSETREE)
                 self.getNextToken()
                 opP = self.operP(d + 1)
                 if self.curToken.value == ')':
-                    debug(debugOn, d * self.tab + self.curToken.value)
+                    display(d * self.tab + self.curToken.value, PARSETREE)
                     self.getNextToken()
                 else:
                     # catch cases like (:= cat 33 charlie)
@@ -106,7 +112,7 @@ class Parser:
 
             elif self.isTerminal(self.curToken.id):
                 # detect if floating point value
-                # debug(debugOn, d * self.tab + self.curToken.value)
+                display(d * self.tab + self.curToken.value, PARSETREE)
                 # Guarding against adding e to values like 2e10
 
                 if self.curToken.id == "real" and 'e' not in self.curToken.value:
@@ -146,12 +152,12 @@ class Parser:
             self.getNextToken()
             op1 = self.oper(d)
 
-            debug(debugOn, d * self.tab + op)
+            display(d * self.tab + op, PARSETREE)
 
             # (binop, unop, := ) or constants, name
             if (self.curToken.value == '(' and self.isOper(self.peekToken.id) or self.isTerminal(self.curToken.id)):
                 op2 = self.oper(d)
-                debug(debugOn, d * self.tab + op)
+                display(d * self.tab + op, PARSETREE)
                 return self.gforthBOPS(op1, op2, op)
             else:
                 print '0 swap',
@@ -163,16 +169,16 @@ class Parser:
             # terminal or expression
             op1 = self.oper(d)
             op2 = self.oper(d)
-            debug(debugOn, "op1:" + str(op1) + " op2:" + str(op2))
+            display("op1:" + str(op1) + " op2:" + str(op2), PARSETREE)
             #print "\nop1:" + str(op1) + " op2:" + str(op2)
-            debug(debugOn, d * self.tab + bop)
+            display(d * self.tab + bop, PARSETREE)
             # if int float or float int
             return self.gforthBOPS(op1, op2, bop)
         elif self.curToken.id == 'uop':
             uop = self.curToken.value
             self.getNextToken()
             op1 = self.oper(d)
-            debug(debugOn, d * self.tab + uop)
+            display(d * self.tab + uop, PARSETREE)
             return self.gforthUOPS(op1, uop)
         else:
             self.error()
@@ -180,12 +186,12 @@ class Parser:
     # stmts -> ifstmts | whilestmts | letstmts | printsmts
     def stmts(self, d):
         if self.curToken.value == '(':
-            debug(debugOn, d * self.tab + self.curToken.value)
+            display(d * self.tab + self.curToken.value, PARSETREE)
             self.getNextToken()
             self.stmtsP(d + 1)
-            # debug(debugOn, ">> stmts -> curToken = " + self.curToken.value)
+            # display(">> stmts -> curToken = " + self.curToken.value, PARSETREE_DEBUG)
             if self.curToken.value == ')':
-                debug(debugOn, d * self.tab + self.curToken.value)
+                display(d * self.tab + self.curToken.value, PARSETREE)
                 self.getNextToken()
             else:
                 self.error
@@ -198,7 +204,7 @@ class Parser:
             ifToken = self.curToken.value
             self.getNextToken()
             self.expr(d)
-            debug(debugOn, d * self.tab + ifToken)
+            display(d * self.tab + ifToken, PARSETREE)
             print ifToken,
             self.expr(d)
             if self.curToken.value and self.curToken.value != ')':
@@ -208,6 +214,8 @@ class Parser:
             if self.curToken.value and self.curToken.value != ')':
                 self.error()
             print 'endif',
+
+        # whilestmts -> (while expr exprlist)
         elif self.curToken.value == 'while':
             # print d * self.tab + self.curToken.value
             stmt = self.curToken.value
@@ -217,7 +225,8 @@ class Parser:
             print 'while',
             self.exprlist(d)
             print 'repeat ; {0}{1}'.format(self.prefix, stmt),
-        # letstmts -> let( (varlist) )
+
+        # letstmts -> ( let (varlist) )
         elif self.curToken.value == 'let':
             # print d * self.tab + self.curToken.value
             self.getNextToken()
@@ -229,7 +238,7 @@ class Parser:
             else:
                 self.error
         elif self.curToken.value == 'stdout':
-            #debug (debugOn, d * self.tab + self.curToken.value)
+            display (d * self.tab + self.curToken.value, PARSETREE)
             self.getNextToken()
             id = self.oper(d)
             self.gforthSTDOUT(id)
@@ -255,9 +264,9 @@ class Parser:
                     if self.curToken.value == ')':
                         #print d * self.tab + self.curToken.value
                         self.getNextToken()
-                        debug(debugOn, ">> varlist: " + self.curToken.value)
+                        display(">> varlist: " + self.curToken.value, PARSETREE_DEBUG)
                         if self.curToken.value == '(' and self.peekToken.id == 'id':
-                            debug(debugOn, ">> varlist -> varlist")
+                            display(">> varlist -> varlist", PARSETREE_DEBUG)
                             self.varlist(d)
                     else:
                         self.error()
@@ -294,17 +303,17 @@ class Parser:
         # expr
         self.expr(d)
         # expr exprlist
-        debug(debugOn, ">> exprlist -> expr -> " + self.curToken.value)
+        display(">> exprlist -> expr -> " + self.curToken.value, PARSETREE_DEBUG )
         if (self.curToken.value == '(' and (self.isOper(self.peekToken.id) or self.peekToken.id == 'stmt')) or self.isTerminal(self.curToken.id):
-            debug(debugOn, ">> exprlist -> exprlist")
+            display(">> exprlist -> exprlist", PARSETREE_DEBUG)
             self.exprlist(d)
 
     def expr(self, d):
-        debug(debugOn, ">> expr: " + self.curToken.value + self.peekToken.value)
+        display(">> expr: " + self.curToken.value + self.peekToken.value, PARSETREE_DEBUG)
         if self.curToken.value == '(' and self.isOper(self.peekToken.id):
             self.oper(d)
         elif self.isTerminal(self.curToken.id):
-            debug(debugOn, ">> expr -> oper")
+            display(">> expr -> oper", PARSETREE_DEBUG)
             self.oper(d)
         elif self.curToken.value == '(' and self.peekToken.id == 'stmt':
             self.stmts(d)
