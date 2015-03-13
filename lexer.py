@@ -89,8 +89,6 @@ class Lexer:
                 if peek == '+' or peek == '-':
                     n += peek
                     peek = self.scanner.read()
-                if not isDigit(peek):
-                    self.eMessage(peek)
                 while isDigit(peek):
                     n += peek
                     peek = self.scanner.read()

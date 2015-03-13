@@ -32,32 +32,41 @@ class Parser:
         else:
             self.error()
         self.tab = '    '
-        #print ": milestone4",
-        self.S(0)
+        self.start()
+        #self.S(0)
         print ""
 
+    def start(self):
+        while self.curToken.value:
+            self.S(0)
+            vt = {}
+            #self.getNextToken()
+
+    # Original Grammar:
+    # S   -> () | (S) | SS | expr
+
+    # Transformed Grammar:
     # S   -> (S'S'' | exprS''
     # S'  -> )      | S)
     # S'' -> SS''   | epsilon
     def S(self, d):
+        my = self.curToken.value
+        if 'x' in vt:
+            print my + ':why x in vt?'
         if self.curToken.value and self.curToken.value == '(':
             # exprS'' expr starting with '('
             if self.peekToken.value and self.isOper(self.peekToken.id):
                 self.oper(d)
                 self.SPP(d)
-                if self.curToken.value:
-                    self.error()
             # exprS'' stmt starting with '('
             elif self.peekToken.value and self.peekToken.id == 'stmt':
                 display('>> S -> stmts', PARSETREE_DEBUG)
                 self.stmts(d)
                 display('>> S -> SPP', PARSETREE_DEBUG )
                 self.SPP(d)
-                if self.curToken.value:
-                    self.error()
             # (S'S''
             else:
-                display(d * self.tab + '(', PARSETREE_DEBUG)
+                display(d * self.tab + '(', PARSETREE)
                 self.getNextToken()
                 self.SP(d)
                 self.SPP(d)
@@ -66,7 +75,7 @@ class Parser:
             self.oper(d)
             self.SPP(d) #fails on ((1 2)) without this SPP
         else:
-            self.error()
+            self.error('S error')
 
     #S' -> ) | S)
     def SP(self, d):
@@ -77,9 +86,8 @@ class Parser:
         # S) and )
         if self.curToken.value == ')':
             display(d * self.tab + ')', PARSETREE)
-            self.getNextToken()
-        else:
-            self.error()
+            if d > 0:
+                self.getNextToken()
 
     # S'' -> SS'' | epsilon
     def SPP(self, d):
@@ -122,19 +130,19 @@ class Parser:
                 elif self.curToken.id == 'string':
                     print 's\" {0}'.format(self.curToken.value[1:]),
 
-                # variables
-                else:
+                # Variables
+                elif self.curToken.id == 'id':
                     var = self.curToken.value
-                    # Initialized variable
                     if var in vt:
                         print '{0} {1}'.format(var, gt[vt[var]]['access']),
-                    # When first initiailizing variable
                     else:
-                        print '{0}'.format(var),
+                        self.error('using uninitialized variable')
+                else:
+                    print self.curToken.value,
 
                 cur = self.curToken
                 self.getNextToken()
-                return cur.id
+                return cur.id if cur.id != 'id' else vt[cur.value]
             else:
                 self.error('current token is neither beginning of oper nor terminal')
         else:
@@ -203,31 +211,35 @@ class Parser:
                 display(d * self.tab + self.curToken.value, PARSETREE)
                 self.getNextToken()
             else:
-                self.error()
+                self.error('stmts 1 error')
         else:
-            self.error()
+            self.error('stmts 2 error')
 
     def stmtsP(self, d):
         # ifstmts -> (if expr expr) | (if expr exp expr)
         if self.curToken.value == 'if':
-            ifToken = self.curToken.value
+            stmt = self.curToken.value
+            display(d * self.tab + stmt, PARSETREE)
+            print ': {0}{1}'.format(self.prefix, stmt),
             self.getNextToken()
             self.expr(d)
-            display(d * self.tab + ifToken, PARSETREE)
-            print ifToken,
+
+            # 'if' needs to be printed after condition for gforth syntax
+            print 'if',
             self.expr(d)
             if self.curToken.value and self.curToken.value != ')':
                 print 'else',
                 self.expr(d)
+
             # Error if more than 3 args
             if self.curToken.value and self.curToken.value != ')':
-                self.error()
-            print 'endif',
+                self.error('too many arguments given in if statment')
+            print 'endif ; {0}{1}'.format(self.prefix, stmt),
 
         # whilestmts -> (while expr exprlist)
         elif self.curToken.value == 'while':
-            # print d * self.tab + self.curToken.value
             stmt = self.curToken.value
+            display(d * self.tab + stmt, PARSETREE)
             print ': {0}{1} begin'.format(self.prefix, stmt),
             self.getNextToken()
             self.expr(d)
@@ -237,7 +249,7 @@ class Parser:
 
         # letstmts -> ( let (varlist) )
         elif self.curToken.value == 'let':
-            # print d * self.tab + self.curToken.value
+            display(d * self.tab + self.curToken.value, PARSETREE)
             self.getNextToken()
             if self.curToken.value == '(':
                 self.getNextToken()
@@ -245,12 +257,12 @@ class Parser:
                 if self.curToken.value == ')':
                     self.getNextToken()
             else:
-                self.error
+                self.error('let syntax error ( let (varlist) )')
         elif self.curToken.value == 'stdout':
             display (d * self.tab + self.curToken.value, PARSETREE)
             self.getNextToken()
-            id = self.oper(d)
-            self.gforthSTDOUT(id)
+            eType = self.oper(d)
+            self.gforthSTDOUT(eType)
             if self.curToken.value and self.curToken.value != ')':
                 self.error()
         else:
@@ -286,25 +298,6 @@ class Parser:
         else:
             self.error()
 
-    def gforthInitVar(self, var, varType):
-        if var and self.isType(varType):
-            print '{0} {1}'.format(gt[varType]['init'], var),
-            # Add variable to variable table
-            vt[var] = varType
-        else:
-            self.error('variable {0} undefined and/or illegal type'.format(var))
-
-    # Q: Is there a need to store the value?
-    def gforthSetVar(self, var, eType):
-        if var in vt:
-            varType = vt[var]
-            if varType == eType:
-                print '{0} {1}'.format(var, gt[varType]['assign']),
-            else:
-                self.error('Type Mismatch: setting {0} variable to {1}'.format(varType, eType))
-        else:
-            self.error('variable {0} not initialized'.format(var))
-
     def exprlist(self, d):
         # expr
         self.expr(d)
@@ -325,6 +318,25 @@ class Parser:
             self.stmts(d)
         else:
             self.error()
+
+    def gforthInitVar(self, var, varType):
+        if var and self.isType(varType):
+            print '{0} {1}'.format(gt[varType]['init'], var),
+            # Add variable to variable table
+            vt[var] = varType
+        else:
+            self.error('variable {0} undefined and/or illegal type'.format(var))
+
+    # Q: Is there a need to store the value?
+    def gforthSetVar(self, var, eType):
+        if var in vt:
+            varType = vt[var]
+            if varType == eType:
+                print '{0} {1}'.format(var, gt[varType]['assign']),
+            else:
+                self.error('Type Mismatch: setting {0} variable to {1}'.format(varType, eType))
+        else:
+            self.error('variable {0} not initialized'.format(var))
 
     def gforthUOPS(self, op1, uop):
         # print '\nuop:' + str(op1)
