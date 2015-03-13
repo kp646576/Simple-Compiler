@@ -1,7 +1,6 @@
 from token import Token
 from lexer import Lexer
 from gforthTable import gforthTable as gt
-from gforthTable import varTable as vt
 import sys
 
 # Constants for controlling output
@@ -24,6 +23,10 @@ class Parser:
         self.peekToken = Token(0, '', '')
         self.tokenIdx = 1
         self.prefix = 'kp'
+
+        self.vt = {}
+        self.lparen = 0
+        self.rparen = 0
         if len(self.tokens) == 1:
             self.curToken = self.tokens[0]
         elif len(self.tokens) > 1:
@@ -39,8 +42,11 @@ class Parser:
     def start(self):
         while self.curToken.value:
             self.S(0)
-            vt = {}
-            #self.getNextToken()
+            self.lparen = 0
+            self.rparen = 0
+            #print '---------------'
+            self.vt = {}
+            self.getNextToken()
 
     # Original Grammar:
     # S   -> () | (S) | SS | expr
@@ -50,9 +56,6 @@ class Parser:
     # S'  -> )      | S)
     # S'' -> SS''   | epsilon
     def S(self, d):
-        my = self.curToken.value
-        if 'x' in vt:
-            print my + ':why x in vt?'
         if self.curToken.value and self.curToken.value == '(':
             # exprS'' expr starting with '('
             if self.peekToken.value and self.isOper(self.peekToken.id):
@@ -67,6 +70,7 @@ class Parser:
             # (S'S''
             else:
                 display(d * self.tab + '(', PARSETREE)
+                self.lparen += 1
                 self.getNextToken()
                 self.SP(d)
                 self.SPP(d)
@@ -81,12 +85,14 @@ class Parser:
     def SP(self, d):
         # S)
         if self.curToken.value and self.curToken.value != ')':
-            self.S(d + 1)
+            self.S(d)
             display(">> SP: " + self.curToken.value, PARSETREE_DEBUG)
         # S) and )
         if self.curToken.value == ')':
+            self.rparen += 1
             display(d * self.tab + ')', PARSETREE)
-            if d > 0:
+            display('lparen:{0}, rparen:{1}'.format(self.lparen, self.rparen), GFORTH_DEBUG)
+            if self.lparen > self.rparen:
                 self.getNextToken()
 
     # S'' -> SS'' | epsilon
@@ -107,12 +113,14 @@ class Parser:
     def oper(self, d):
         if self.curToken.value:
             if self.curToken.value == '(':
+                self.lparen += 1
                 display(d * self.tab + '(', PARSETREE)
                 self.getNextToken()
                 opP = self.operP(d + 1)
 
                 # F: self.paramList(d + 1) ?
                 if self.curToken.value == ')':
+                    self.rparen += 1
                     display(d * self.tab + self.curToken.value, PARSETREE)
                     self.getNextToken()
                 else:
@@ -133,8 +141,8 @@ class Parser:
                 # Variables
                 elif self.curToken.id == 'id':
                     var = self.curToken.value
-                    if var in vt:
-                        print '{0} {1}'.format(var, gt[vt[var]]['access']),
+                    if var in self.vt:
+                        print '{0} {1}'.format(var, gt[self.vt[var]]['access']),
                     else:
                         self.error('using uninitialized variable')
                 else:
@@ -142,7 +150,7 @@ class Parser:
 
                 cur = self.curToken
                 self.getNextToken()
-                return cur.id if cur.id != 'id' else vt[cur.value]
+                return cur.id if cur.id != 'id' else self.vt[cur.value]
             else:
                 self.error('current token is neither beginning of oper nor terminal')
         else:
@@ -203,11 +211,13 @@ class Parser:
     # stmts -> ifstmts | whilestmts | letstmts | printsmts
     def stmts(self, d):
         if self.curToken.value == '(':
+            self.lparen += 1
             display(d * self.tab + self.curToken.value, PARSETREE)
             self.getNextToken()
             self.stmtsP(d + 1)
             # display(">> stmts -> curToken = " + self.curToken.value, PARSETREE_DEBUG)
             if self.curToken.value == ')':
+                self.rparen += 1
                 display(d * self.tab + self.curToken.value, PARSETREE)
                 self.getNextToken()
             else:
@@ -252,9 +262,11 @@ class Parser:
             display(d * self.tab + self.curToken.value, PARSETREE)
             self.getNextToken()
             if self.curToken.value == '(':
+                self.lparen += 1
                 self.getNextToken()
                 self.varlist(d)
                 if self.curToken.value == ')':
+                    self.rparen += 1
                     self.getNextToken()
             else:
                 self.error('let syntax error ( let (varlist) )')
@@ -271,6 +283,7 @@ class Parser:
     # varlist -> (name type) | (name type) varlist
     def varlist(self, d):
         if self.curToken.value == '(':
+            self.lparen += 1
             #print d * self.tab + self.curToken.value
             self.getNextToken()
             if self.curToken.id == 'id':
@@ -283,6 +296,7 @@ class Parser:
                     self.gforthInitVar(var, varType)
                     self.getNextToken()
                     if self.curToken.value == ')':
+                        self.rparen += 1
                         #print d * self.tab + self.curToken.value
                         self.getNextToken()
                         display(">> varlist: " + self.curToken.value, PARSETREE_DEBUG)
@@ -323,14 +337,14 @@ class Parser:
         if var and self.isType(varType):
             print '{0} {1}'.format(gt[varType]['init'], var),
             # Add variable to variable table
-            vt[var] = varType
+            self.vt[var] = varType
         else:
             self.error('variable {0} undefined and/or illegal type'.format(var))
 
     # Q: Is there a need to store the value?
     def gforthSetVar(self, var, eType):
-        if var in vt:
-            varType = vt[var]
+        if var in self.vt:
+            varType = self.vt[var]
             if varType == eType:
                 print '{0} {1}'.format(var, gt[varType]['assign']),
             else:
