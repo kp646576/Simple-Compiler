@@ -85,12 +85,15 @@ class Parser:
     def SPP(self, d):
         # SS''
         if self.curToken.value == '(' or self.isTerminal(self.curToken.id):
-            display(">> SPP " + self.curToken.value, PARSETREE_DEBUG )
+            display(">> SPP " + self.curToken.value, PARSETREE_DEBUG)
             self.S(d)
             self.SPP(d)
         # epsilon
 
+    # Original Grammar:
     # oper  -> (:= name oper) | (binops oper oper) | (unops oper) | constants | name
+
+    # Transformed Grammar:
     # oper  -> (operP | constants | name
     # operP -> := name oper | binops oper oper | unops oper
     def oper(self, d):
@@ -99,65 +102,72 @@ class Parser:
                 display(d * self.tab + '(', PARSETREE)
                 self.getNextToken()
                 opP = self.operP(d + 1)
+
+                # F: self.paramList(d + 1) ?
                 if self.curToken.value == ')':
                     display(d * self.tab + self.curToken.value, PARSETREE)
                     self.getNextToken()
                 else:
                     # catch cases like (:= cat 33 charlie)
                     self.error()
-
-                # What is this returning?
                 return opP
 
 
             elif self.isTerminal(self.curToken.id):
-                # detect if floating point value
                 display(d * self.tab + self.curToken.value, PARSETREE)
-                # Guarding against adding e to values like 2e10
 
+                # Guarding against adding e to values like 2e10
                 if self.curToken.id == "real" and 'e' not in self.curToken.value:
-                    print self.curToken.value + 'e',
+                    print '{0}e'.format(self.curToken.value),
                 elif self.curToken.id == 'string':
-                    print 's\" ' + self.curToken.value[1:],
+                    print 's\" {0}'.format(self.curToken.value[1:]),
+
+                # variables
                 else:
-                    print self.curToken.value,
+                    var = self.curToken.value
+                    # Initialized variable
+                    if var in vt:
+                        print '{0} {1}'.format(var, gt[vt[var]]['access']),
+                    # When first initiailizing variable
+                    else:
+                        print '{0}'.format(var),
 
                 cur = self.curToken
                 self.getNextToken()
                 return cur.id
             else:
-                self.error()
+                self.error('current token is neither beginning of oper nor terminal')
         else:
-            self.error()
+            self.error('current token is null')
 
-    # Converted to postfix
+
+
     def operP(self, d):
         if self.curToken.id == 'assign':
             assign = self.curToken.value
+            display(d * self.tab + assign, PARSETREE)
             self.getNextToken()
+
             if self.curToken.id == 'id':
-                #print d * self.tab + self.curToken.value
+                display(d * self.tab + self.curToken.value, PARSETREE)
                 var = self.curToken.value
                 self.getNextToken()
-                # self.oper(d)
-                # Remove self.oper(d) above and replace with below
 
-                self.gforthSetVar(var, self.oper(d).value)
+                eType = self.oper(d)
+                self.gforthSetVar(var, eType)
             else:
-                self.error()
-            #print d * self.tab + assign
+                self.error('non-name found after assign in (:= name oper)')
+
         # Need to deal with - separately
         elif self.curToken.id == 'op':
             op = self.curToken.value
+            display(d * self.tab + op, PARSETREE)
             self.getNextToken()
             op1 = self.oper(d)
-
-            display(d * self.tab + op, PARSETREE)
 
             # (binop, unop, := ) or constants, name
             if (self.curToken.value == '(' and self.isOper(self.peekToken.id) or self.isTerminal(self.curToken.id)):
                 op2 = self.oper(d)
-                display(d * self.tab + op, PARSETREE)
                 return self.gforthBOPS(op1, op2, op)
             else:
                 print '0 swap',
@@ -165,23 +175,22 @@ class Parser:
 
         elif self.curToken.id == 'bop':
             bop = self.curToken.value
+            display(d * self.tab + bop, PARSETREE)
             self.getNextToken()
-            # terminal or expression
+            # Values can be terminals or expressions
             op1 = self.oper(d)
             op2 = self.oper(d)
-            display("op1:" + str(op1) + " op2:" + str(op2), PARSETREE)
-            #print "\nop1:" + str(op1) + " op2:" + str(op2)
-            display(d * self.tab + bop, PARSETREE)
-            # if int float or float int
+            display('op1: {0} op2: {1}'.format(op1, op2), PARSETREE_DEBUG)
             return self.gforthBOPS(op1, op2, bop)
+
         elif self.curToken.id == 'uop':
             uop = self.curToken.value
+            display(d * self.tab + uop, PARSETREE)
             self.getNextToken()
             op1 = self.oper(d)
-            display(d * self.tab + uop, PARSETREE)
             return self.gforthUOPS(op1, uop)
         else:
-            self.error()
+            self.error('prefix operation {0} not found in grammar of oper'.format(self.curToken.id))
 
     # stmts -> ifstmts | whilestmts | letstmts | printsmts
     def stmts(self, d):
@@ -194,9 +203,9 @@ class Parser:
                 display(d * self.tab + self.curToken.value, PARSETREE)
                 self.getNextToken()
             else:
-                self.error
+                self.error()
         else:
-            self.error
+            self.error()
 
     def stmtsP(self, d):
         # ifstmts -> (if expr expr) | (if expr exp expr)
@@ -279,25 +288,22 @@ class Parser:
 
     def gforthInitVar(self, var, varType):
         if var and self.isType(varType):
-            if varType == 'real':
-                print gt[varType]['init'] + var,
-            else:
-                print gt['init'] + var,
+            print '{0} {1}'.format(gt[varType]['init'], var),
             # Add variable to variable table
-            vt[var] = [varType, '']
+            vt[var] = varType
         else:
-            self.error('var undefined and/or varType not legal type')
+            self.error('variable {0} undefined and/or illegal type'.format(var))
 
-    def gforthSetVar(self, var, value):
+    # Q: Is there a need to store the value?
+    def gforthSetVar(self, var, eType):
         if var in vt:
-            vt[var][1] = value
-            if vt[var][0] == 'real':
-                print var + ' ' + gt[varType]['assign'],
+            varType = vt[var]
+            if varType == eType:
+                print '{0} {1}'.format(var, gt[varType]['assign']),
             else:
-                print var + ' ' + gt['assign'],
+                self.error('Type Mismatch: setting {0} variable to {1}'.format(varType, eType))
         else:
-            self.error('variable ' + var + ' not in vt (not initialized)')
-
+            self.error('variable {0} not initialized'.format(var))
 
     def exprlist(self, d):
         # expr
