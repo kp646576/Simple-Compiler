@@ -1,0 +1,1 @@
+( (let ((x int))) (:= x 0) (while (< x 5) (stdout "hello world!") (:= x (+ x 1))))

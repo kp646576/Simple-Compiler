@@ -122,7 +122,8 @@ class Parser:
                 if self.curToken.value == ')':
                     self.rparen += 1
                     display(d * self.tab + self.curToken.value, PARSETREE)
-                    self.getNextToken()
+                    if self.lparen > self.rparen:
+                        self.getNextToken()
                 else:
                     # catch cases like (:= cat 33 charlie)
                     self.error()
@@ -219,7 +220,8 @@ class Parser:
             if self.curToken.value == ')':
                 self.rparen += 1
                 display(d * self.tab + self.curToken.value, PARSETREE)
-                self.getNextToken()
+                if self.lparen > self.rparen:
+                    self.getNextToken()
             else:
                 self.error('stmts 1 error')
         else:
@@ -341,12 +343,13 @@ class Parser:
         else:
             self.error('variable {0} undefined and/or illegal type'.format(var))
 
-    # Q: Is there a need to store the value?
     def gforthSetVar(self, var, eType):
         if var in self.vt:
             varType = self.vt[var]
             if varType == eType:
                 print '{0} {1}'.format(var, gt[varType]['assign']),
+            elif varType == 'real' and eType == 'int':
+                print 's>f {0} {1}'.format(var, gt[varType]['assign']),
             else:
                 self.error('Type Mismatch: setting {0} variable to {1}'.format(varType, eType))
         else:
@@ -439,7 +442,7 @@ class Parser:
 
     def error(self, msg=''):
         print >> sys.stderr, 'parser error line: ' + str(self.curToken.line) + ' token value: ' + str(self.curToken.value) + ' msg: ' + msg
-        sys.exit(0)
+        sys.exit(1)
 
     def getNextToken(self):
         self.curToken = self.peekToken

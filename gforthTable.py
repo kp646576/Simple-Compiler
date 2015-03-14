@@ -1,4 +1,22 @@
 gforthTable = {
+    'int'   : {
+        'access' : '@',
+        'assign' : '!',
+        'init'   : 'variable'
+    },
+
+    'string' : {
+        'access' : '@',
+        'assign' : '!',
+        'init'   : 'variable'
+    },
+
+    'real'  : {
+        'access' : 'f@',
+        'assign' : 'f!',
+        'init'   : 'fvariable',
+    },
+
     # Unary
     'not'   : '0=',
 

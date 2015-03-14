@@ -1,0 +1,18 @@
+(
+   (let ((n int) (a real) (b real)
+        (area real) (width real) (x real)))
+
+   (:= n 100)
+   (:= a 0)
+   (:= b 1)
+   (:= area 0)
+   (:= x a)
+   (:= width (/ (- b a) n))
+
+   (while (< x b)
+      (:= area (+ area (* (^ x 2) width)))
+      (:= x (+ x width))
+   )
+
+   (stdout area)
+)

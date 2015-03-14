@@ -1,0 +1,4 @@
+( (let ((x int))) (:= x 5))
+(let ((x int)))
+(let ((x real)))
+(let ((x string)))
