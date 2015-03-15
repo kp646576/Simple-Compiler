@@ -25,6 +25,8 @@ class Parser:
         self.prefix = 'kp'
 
         self.vt = {}
+        self.ft = {}
+
         self.lparen = 0
         self.rparen = 0
         if len(self.tokens) == 1:
@@ -259,19 +261,28 @@ class Parser:
             self.exprlist(d)
             print 'repeat ; {0}{1}'.format(self.prefix, stmt),
 
-        # letstmts -> ( let (varlist) )
+        # Original Grammar:
+        # letstmts -> ( let (varlist) ) | ( let ((funlist) (funtype)) exprlist )
+
+        # Transformed Grammar:
+        # letstmts  -> ( let ( letstmtsP
+        # letstmtsP -> varlist) ) | (funlist) (funtype)) exprlist )
+        # * First and last parens taken care of in stmts
+
+        # letstmts -> (let ((funlist) (funtype)) exprlist)
         elif self.curToken.value == 'let':
             display(d * self.tab + self.curToken.value, PARSETREE)
             self.getNextToken()
             if self.curToken.value == '(':
                 self.lparen += 1
+                display(d * self.tab + self.curToken.value, PARSETREE)
                 self.getNextToken()
-                self.varlist(d)
-                if self.curToken.value == ')':
-                    self.rparen += 1
-                    self.getNextToken()
+
+                letstmtsP(d)
+
             else:
-                self.error('let syntax error ( let (varlist) )')
+                self.error('no starting parenthesis after let statement')
+
         elif self.curToken.value == 'stdout':
             display (d * self.tab + self.curToken.value, PARSETREE)
             self.getNextToken()
@@ -281,6 +292,99 @@ class Parser:
                 self.error()
         else:
             self.error()
+
+
+    # letstmtsP -> varlist) ) | (funlist) (funtype)) exprlist )
+    def letstmtsP(self, d, n):
+        # (funlist) (funtype)) exprlist
+        if self.curToken.value == '(':
+            self.lparen += 1
+            display(d * self.tab + self.curToken.value, PARSETREE)
+            self.getNextToken()
+
+            # factor out the first value (function name)
+            if self.curToken.id != 'id':
+                self.error('non-name in funlist')
+            display(d * self.tab + self.curToken.value, PARSETREE)
+            n = self.curToken.value
+            ft[n] = {}
+            l = []
+            self.getNextToken()
+            if self.curToken.id == 'id':
+                self.funlist(d, n, l)
+
+            if self.curToken != ')':
+                self.error('no closing parenthesis after funlist')
+            self.rparen += 1
+            self.getNextToken()
+
+            if self.curToken.value != '(':
+                self.error('no starting parenthesis for funtype')
+            self.lparen += 1
+            display(d * self.tab + self.curToken.value, PARSETREE)
+            self.getNextToken()
+
+            self.funtype(d, n, l)
+
+            if self.curToken != ')':
+                self.error('no closing parenthesis after funtype')
+            self.rparen += 1
+            display(d * self.tab + self.curToken.value, PARSETREE)
+            self.getNextToken()
+
+            if self.curToken != ')':
+                self.error('no closing parenthesis after inner let expression')
+            self.rparen += 1
+            display(d * self.tab + self.curToken.value, PARSETREE)
+            self.getNextToken()
+
+            self.exprlist(d)
+
+        # varlist)
+        else:
+            self.varlist(d)
+            if self.curToken.value != ')':
+                self.error('no closing parenthesis after varlist')
+            self.rparen += 1
+            display(d * self.tab + self.curToken.value, PARSETREE)
+            self.getNextToken()
+
+        # Taken care of in stmts?
+        # )
+        #if self.curToken.value != ')':
+        #    self.error('no closing parenthesis after let statement')
+        #self.rparen += 1
+        #display(d * self.tab + self.curToken.value, PARSETREE)
+        #self.getNextToken()
+
+
+    # funlist -> name | name funlist
+    # 1st name is function name and subsequent names are paremeters
+    # Can't loop funlist because don't know how many parameters there will be
+
+    # need to add name
+    def funlist(self, d, n, l):
+        if self.curToken.id != 'id':
+            self.error('non-name in funlist')
+        ft[n] = {curToken.value : ''}
+        l.append(curToken.value)
+        self.getNextToken()
+        if self.curToken.id == 'id':
+            self.funlist(d, n, l)
+
+    # funtype -> type | type funtype
+    def funtype(self, d, n, l):
+        for i in range(len(l) + 1):
+            if not isType(self.curToken.id):
+                self.error('non-type given to funtype')
+            try:
+                if i == 0:
+                    ft[n]['type'] = self.curToken.value
+                else:
+                    ft[n][l[i - 1]] = self.curToken.value
+                self.getNextToken()
+            except IndexError:
+                self.error('incorrect number of funlist and funtype')
 
     # varlist -> (name type) | (name type) varlist
     def varlist(self, d):
