@@ -107,11 +107,14 @@ class Parser:
         # epsilon
 
     # Original Grammar:
-    # oper  -> (:= name oper) | (binops oper oper) | (unops oper) | constants | name
+    # oper  -> (:= name oper) | (:= name (name paramlist)) | (binops oper oper) | (unops oper) | constants | name
+
+    # oper ->
+
 
     # Transformed Grammar:
-    # oper  -> (operP | constants | name
-    # operP -> := name oper | binops oper oper | unops oper
+    # oper  -> (operP) | constants | name
+    # operP -> := name oper | := name (name paramlist) | binops oper oper | unops oper
     def oper(self, d):
         if self.curToken.value:
             if self.curToken.value == '(':
@@ -160,8 +163,11 @@ class Parser:
             self.error('current token is null')
 
 
+    # paramlist -> oper paramlist | e
+    # def paramlist(self, d):
 
     def operP(self, d):
+        # := name oper | := name (name paramlist)
         if self.curToken.id == 'assign':
             assign = self.curToken.value
             display(d * self.tab + assign, PARSETREE)
@@ -176,6 +182,10 @@ class Parser:
                 self.gforthSetVar(var, eType)
             else:
                 self.error('non-name found after assign in (:= name oper)')
+
+
+
+
 
         # Need to deal with - separately
         elif self.curToken.id == 'op':
@@ -265,8 +275,8 @@ class Parser:
         # letstmts -> ( let (varlist) ) | ( let ((funlist) (funtype)) exprlist )
 
         # Transformed Grammar:
-        # letstmts  -> ( let ( letstmtsP
-        # letstmtsP -> varlist) ) | (funlist) (funtype)) exprlist )
+        # letstmts  -> ( let (letstmtsP )
+        # letstmtsP -> varlist) | (funlist) (funtype)) exprlist
         # * First and last parens taken care of in stmts
 
         # letstmts -> (let ((funlist) (funtype)) exprlist)
@@ -294,7 +304,7 @@ class Parser:
             self.error()
 
 
-    # letstmtsP -> varlist) ) | (funlist) (funtype)) exprlist )
+    # letstmtsP -> varlist) | (funlist) (funtype)) exprlist
     def letstmtsP(self, d, n):
         # (funlist) (funtype)) exprlist
         if self.curToken.value == '(':
@@ -307,11 +317,11 @@ class Parser:
                 self.error('non-name in funlist')
             display(d * self.tab + self.curToken.value, PARSETREE)
             n = self.curToken.value
-            ft[n] = {}
-            l = []
+            ft[n] = {'params' : [], 'paramtypes' : [], 'vars' : [], 'innards' : []}
+
             self.getNextToken()
             if self.curToken.id == 'id':
-                self.funlist(d, n, l)
+                self.funlist(d, n)
 
             if self.curToken != ')':
                 self.error('no closing parenthesis after funlist')
@@ -324,7 +334,7 @@ class Parser:
             display(d * self.tab + self.curToken.value, PARSETREE)
             self.getNextToken()
 
-            self.funtype(d, n, l)
+            self.funtype(d, n)
 
             if self.curToken != ')':
                 self.error('no closing parenthesis after funtype')
@@ -339,6 +349,7 @@ class Parser:
             self.getNextToken()
 
             self.exprlist(d)
+            #print ': {0} {1} ;'.format(n, ft[n]['innards']),
 
         # varlist)
         else:
@@ -349,39 +360,36 @@ class Parser:
             display(d * self.tab + self.curToken.value, PARSETREE)
             self.getNextToken()
 
-        # Taken care of in stmts?
-        # )
-        #if self.curToken.value != ')':
-        #    self.error('no closing parenthesis after let statement')
-        #self.rparen += 1
-        #display(d * self.tab + self.curToken.value, PARSETREE)
-        #self.getNextToken()
-
 
     # funlist -> name | name funlist
     # 1st name is function name and subsequent names are paremeters
     # Can't loop funlist because don't know how many parameters there will be
 
     # need to add name
-    def funlist(self, d, n, l):
+    def funlist(self, d, n):
         if self.curToken.id != 'id':
             self.error('non-name in funlist')
-        ft[n] = {curToken.value : ''}
-        l.append(curToken.value)
+        if self.curToken.value in ft[n]['params']:
+            self.error('duplicate parameter name')
+        ft[n]['params'].append([curToken.value, ''])
         self.getNextToken()
         if self.curToken.id == 'id':
-            self.funlist(d, n, l)
+            self.funlist(d, n)
 
     # funtype -> type | type funtype
-    def funtype(self, d, n, l):
-        for i in range(len(l) + 1):
+    def funtype(self, d, n):
+        for i in range(len(ft[n]['params']) + 1):
             if not isType(self.curToken.id):
                 self.error('non-type given to funtype')
             try:
                 if i == 0:
                     ft[n]['type'] = self.curToken.value
                 else:
-                    ft[n][l[i - 1]] = self.curToken.value
+                    ft[n]['paramtypes'].append(self.curToken.value)
+                    # May not need to do this
+                    ft[n]['params'][i - 1][1] = self.curToken.value
+                    # Intialize variables
+                    gforthInitVar('param' + ft[n]['params'][i - 1][0], self.curToken.value)
                 self.getNextToken()
             except IndexError:
                 self.error('incorrect number of funlist and funtype')
