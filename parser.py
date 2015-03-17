@@ -27,6 +27,9 @@ class Parser:
         self.vt = {}
         self.ft = {}
 
+        self.ifc = 0
+        self.whilec = 0
+
         self.lparen = 0
         self.rparen = 0
         if len(self.tokens) == 1:
@@ -109,9 +112,6 @@ class Parser:
     # Original Grammar:
     # oper  -> (:= name oper) | (:= name (name paramlist)) | (binops oper oper) | (unops oper) | constants | name
 
-    # oper ->
-
-
     # Transformed Grammar:
     # oper  -> (operP) | constants | name
     # operP -> := name oper | := name (name paramlist) | binops oper oper | unops oper
@@ -164,7 +164,15 @@ class Parser:
 
 
     # paramlist -> oper paramlist | e
-    # def paramlist(self, d):
+    def paramlist(self, d, n, p):
+        # Expressions as funciton params
+        ptype = self.oper(d, n)
+        if ptype != ft[n]['paramtypes'][p]:
+            self.error('type mismatch: expected {0} received {1}'.format(ft[n]['paramtypes'][p], self.curToken.value))
+        self.gforthSetVar(n + ft[n]['params'][p], ptype)
+        self.getNextToken()
+        if p <= len(ft[n]['paramtypes']):
+            paramlist(d, n, p + 1)
 
     def operP(self, d):
         # := name oper | := name (name paramlist)
@@ -176,10 +184,36 @@ class Parser:
             if self.curToken.id == 'id':
                 display(d * self.tab + self.curToken.value, PARSETREE)
                 var = self.curToken.value
+
                 self.getNextToken()
 
-                eType = self.oper(d)
-                self.gforthSetVar(var, eType)
+                if self.curToken.value == '(':
+                    self.lparen += 1
+                    display(d * self.tab + self.curToken.value, PARSETREE)
+                    self.getNextToken()
+                    if self.curToken.id != 'id':
+                        self.error('no subsequent name found after parenthesis')
+
+                    n = self.curToken.value
+
+                    self.getNextToken()
+                    self.paramlist(d, n, 0)
+                    if self.curToken.value != ')':
+                        self.error('no closing parenthesis to paramlist')
+                    self.rparen += 1
+                    display(d * self.tab + self.curToken.value, PARSETREE)
+                    # call function and store result? inside variable
+                    # Initialize variable as same type as function
+                    gforthInitVar(var, ft[n]['type'])
+
+                    # Run function and set result to variable
+                    # gforthSetVar(var, vt[var]) ???
+                    print n,
+
+                    self.getNextToken()
+                else:
+                    eType = self.oper(d)
+                    self.gforthSetVar(var, eType)
             else:
                 self.error('non-name found after assign in (:= name oper)')
 
@@ -221,7 +255,7 @@ class Parser:
         else:
             self.error('prefix operation {0} not found in grammar of oper'.format(self.curToken.id))
 
-    # stmts -> ifstmts | whilestmts | letstmts | printsmts
+    # stmts -> ifstmts | whilestmts | letstmts | printsmts | (return oper)
     def stmts(self, d):
         if self.curToken.value == '(':
             self.lparen += 1
@@ -239,12 +273,13 @@ class Parser:
         else:
             self.error('stmts 2 error')
 
-    def stmtsP(self, d):
+    def stmtsP(self, d, n = ''):
         # ifstmts -> (if expr expr) | (if expr exp expr)
         if self.curToken.value == 'if':
             stmt = self.curToken.value
             display(d * self.tab + stmt, PARSETREE)
-            print ': {0}{1}'.format(self.prefix, stmt),
+            print ': {0}{1}'.format(stmt, self.ifc),
+            self.ifc += 1
             self.getNextToken()
             self.expr(d)
 
@@ -258,18 +293,29 @@ class Parser:
             # Error if more than 3 args
             if self.curToken.value and self.curToken.value != ')':
                 self.error('too many arguments given in if statment')
-            print 'endif ; {0}{1}'.format(self.prefix, stmt),
+
+            if n != '':
+                print 'endif ;',
+                ft[n]['innards'].append('{0}{1}'.format(stmt, self.ifc))
+            else:
+                print 'endif ; {0}{1}'.format(stmt, self.ifc),
 
         # whilestmts -> (while expr exprlist)
         elif self.curToken.value == 'while':
             stmt = self.curToken.value
             display(d * self.tab + stmt, PARSETREE)
-            print ': {0}{1} begin'.format(self.prefix, stmt),
+            print ': {0}{1} begin'.format(stmt, self.whilec),
+            self.whilec += 1
             self.getNextToken()
             self.expr(d)
             print 'while',
             self.exprlist(d)
-            print 'repeat ; {0}{1}'.format(self.prefix, stmt),
+
+            if whilec != '':
+                print 'repeat ;',
+                ft[n]['innards'].append('{0}{1}'.format(stmt, self.whilec))
+            else:
+                print 'repeat ; {0}{1}'.format(stmt, self.whilec),
 
         # Original Grammar:
         # letstmts -> ( let (varlist) ) | ( let ((funlist) (funtype)) exprlist )
@@ -288,7 +334,7 @@ class Parser:
                 display(d * self.tab + self.curToken.value, PARSETREE)
                 self.getNextToken()
 
-                letstmtsP(d)
+                self.letstmtsP(d)
 
             else:
                 self.error('no starting parenthesis after let statement')
@@ -300,12 +346,25 @@ class Parser:
             self.gforthSTDOUT(eType)
             if self.curToken.value and self.curToken.value != ')':
                 self.error()
+        elif self.curToken.value == 'return':
+            if n != '':
+                # need variable to set
+                #l = []
+                eType = self.oper(d, n)
+                #ft[n]['innards'].append(l)
+
+                # create return variable
+                # need to append to innards
+                gforthSetVar(ft[n][n + 'return'], eType)
+                ft[n]['innards'].append('exit')
+            #else:
+                #self.error('return used without function')
         else:
             self.error()
 
 
     # letstmtsP -> varlist) | (funlist) (funtype)) exprlist
-    def letstmtsP(self, d, n):
+    def letstmtsP(self, d):
         # (funlist) (funtype)) exprlist
         if self.curToken.value == '(':
             self.lparen += 1
@@ -317,13 +376,13 @@ class Parser:
                 self.error('non-name in funlist')
             display(d * self.tab + self.curToken.value, PARSETREE)
             n = self.curToken.value
-            ft[n] = {'params' : [], 'paramtypes' : [], 'vars' : [], 'innards' : []}
+            self.ft[n] = {'params' : [], 'paramtypes' : [], 'innards' : [], n + 'return' : ''}
 
             self.getNextToken()
             if self.curToken.id == 'id':
                 self.funlist(d, n)
 
-            if self.curToken != ')':
+            if self.curToken.value != ')':
                 self.error('no closing parenthesis after funlist')
             self.rparen += 1
             self.getNextToken()
@@ -334,22 +393,24 @@ class Parser:
             display(d * self.tab + self.curToken.value, PARSETREE)
             self.getNextToken()
 
+            print self.curToken.value
             self.funtype(d, n)
 
-            if self.curToken != ')':
+            if self.curToken.value != ')':
                 self.error('no closing parenthesis after funtype')
             self.rparen += 1
             display(d * self.tab + self.curToken.value, PARSETREE)
             self.getNextToken()
 
-            if self.curToken != ')':
+            if self.curToken.value != ')':
                 self.error('no closing parenthesis after inner let expression')
             self.rparen += 1
             display(d * self.tab + self.curToken.value, PARSETREE)
             self.getNextToken()
 
-            self.exprlist(d)
-            #print ': {0} {1} ;'.format(n, ft[n]['innards']),
+            if self.curToken.value != ')':
+                self.exprlist(d)
+                print ': {0} {1} ;'.format(n, ft[n]['innards']),
 
         # varlist)
         else:
@@ -369,27 +430,29 @@ class Parser:
     def funlist(self, d, n):
         if self.curToken.id != 'id':
             self.error('non-name in funlist')
-        if self.curToken.value in ft[n]['params']:
+        if self.curToken.value in self.ft[n]['params']:
             self.error('duplicate parameter name')
-        ft[n]['params'].append([curToken.value, ''])
+        self.ft[n]['params'].append([self.curToken.value, ''])
+        print 'curtoken:' + self.curToken.value
         self.getNextToken()
         if self.curToken.id == 'id':
             self.funlist(d, n)
 
     # funtype -> type | type funtype
     def funtype(self, d, n):
-        for i in range(len(ft[n]['params']) + 1):
-            if not isType(self.curToken.id):
+        for i in range(len(self.ft[n]['params']) + 1):
+            if not self.isType(self.curToken.value):
                 self.error('non-type given to funtype')
             try:
+                print self.curToken.value
                 if i == 0:
-                    ft[n]['type'] = self.curToken.value
+                    self.ft[n]['type'] = self.curToken.value
                 else:
-                    ft[n]['paramtypes'].append(self.curToken.value)
+                    self.ft[n]['paramtypes'].append(self.curToken.value)
                     # May not need to do this
-                    ft[n]['params'][i - 1][1] = self.curToken.value
+                    self.ft[n]['params'][i - 1][1] = self.curToken.value
                     # Intialize variables
-                    gforthInitVar('param' + ft[n]['params'][i - 1][0], self.curToken.value)
+                    self.gforthInitVar(n + self.ft[n]['params'][i - 1][0], self.curToken.value)
                 self.getNextToken()
             except IndexError:
                 self.error('incorrect number of funlist and funtype')
