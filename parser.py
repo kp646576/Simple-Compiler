@@ -109,19 +109,27 @@ class Parser:
             self.SPP(d)
         # epsilon
 
+
+    def output(self, s, l):
+        if l == '':
+            print s,
+        else:
+            l.append(s)
+
+
     # Original Grammar:
     # oper  -> (:= name oper) | (:= name (name paramlist)) | (binops oper oper) | (unops oper) | constants | name
 
     # Transformed Grammar:
     # oper  -> (operP) | constants | name
     # operP -> := name oper | := name (name paramlist) | binops oper oper | unops oper
-    def oper(self, d):
+    def oper(self, d, l = ''):
         if self.curToken.value:
             if self.curToken.value == '(':
                 self.lparen += 1
                 display(d * self.tab + '(', PARSETREE)
                 self.getNextToken()
-                opP = self.operP(d + 1)
+                opP = self.operP(d + 1, l)
 
                 # F: self.paramList(d + 1) ?
                 if self.curToken.value == ')':
@@ -140,23 +148,25 @@ class Parser:
 
                 # Guarding against adding e to values like 2e10
                 if self.curToken.id == "real" and 'e' not in self.curToken.value:
-                    print '{0}e'.format(self.curToken.value),
+                    self.output('{0}e'.format(self.curToken.value), l)
                 elif self.curToken.id == 'string':
-                    print 's\" {0}'.format(self.curToken.value[1:]),
+                    self.output('s\" {0}'.format(self.curToken.value[1:]), l)
 
                 # Variables
                 elif self.curToken.id == 'id':
                     var = self.curToken.value
                     if var in self.vt:
-                        print '{0} {1}'.format(var, gt[self.vt[var]]['access']),
+                        self.output('{0} {1}'.format(var, gt[self.vt[var]]['access']), l)
+                    elif var + var in self.ft:
+                        self.output(var + var, l)
                     else:
                         self.error('using uninitialized variable')
                 else:
-                    print self.curToken.value,
+                    self.output(self.curToken.value, l)
 
                 cur = self.curToken
                 self.getNextToken()
-                return cur.id if cur.id != 'id' else self.vt[cur.value]
+                return cur.id if cur.id != 'id' else self.ft[cur.value + cur.value]['type'] if cur.value + cur.value in self.ft  else self.vt[cur.value]
             else:
                 self.error('current token is neither beginning of oper nor terminal')
         else:
@@ -164,17 +174,17 @@ class Parser:
 
 
     # paramlist -> oper paramlist | e
-    def paramlist(self, d, n, p):
+    def paramlist(self, d, n, p, l = ''):
         # Expressions as funciton params
-        ptype = self.oper(d, n)
+        ptype = self.oper(d, n, l)
         if ptype != ft[n]['paramtypes'][p]:
             self.error('type mismatch: expected {0} received {1}'.format(ft[n]['paramtypes'][p], self.curToken.value))
-        self.gforthSetVar(n + ft[n]['params'][p], ptype)
+        self.gforthSetVar(n + self.ft[n]['params'][p], ptype)
         self.getNextToken()
         if p <= len(ft[n]['paramtypes']):
-            paramlist(d, n, p + 1)
+            paramlist(d, n, p + 1, l)
 
-    def operP(self, d):
+    def operP(self, d, l = ''):
         # := name oper | := name (name paramlist)
         if self.curToken.id == 'assign':
             assign = self.curToken.value
@@ -197,7 +207,7 @@ class Parser:
                     n = self.curToken.value
 
                     self.getNextToken()
-                    self.paramlist(d, n, 0)
+                    self.paramlist(d, n, 0, l)
                     if self.curToken.value != ')':
                         self.error('no closing parenthesis to paramlist')
                     self.rparen += 1
@@ -213,7 +223,7 @@ class Parser:
                     self.getNextToken()
                 else:
                     eType = self.oper(d)
-                    self.gforthSetVar(var, eType)
+                    self.gforthSetVar(var, eType, l)
             else:
                 self.error('non-name found after assign in (:= name oper)')
 
@@ -226,42 +236,42 @@ class Parser:
             op = self.curToken.value
             display(d * self.tab + op, PARSETREE)
             self.getNextToken()
-            op1 = self.oper(d)
+            op1 = self.oper(d, l)
 
             # (binop, unop, := ) or constants, name
             if (self.curToken.value == '(' and self.isOper(self.peekToken.id) or self.isTerminal(self.curToken.id)):
-                op2 = self.oper(d)
-                return self.gforthBOPS(op1, op2, op)
+                op2 = self.oper(d, l)
+                return self.gforthBOPS(op1, op2, op, l)
             else:
-                print '0 swap',
-                return self.gforthUOPS(op1, op)
+                self.output('0 swap', l)
+                return self.gforthUOPS(op1, op, l)
 
         elif self.curToken.id == 'bop':
             bop = self.curToken.value
             display(d * self.tab + bop, PARSETREE)
             self.getNextToken()
             # Values can be terminals or expressions
-            op1 = self.oper(d)
-            op2 = self.oper(d)
+            op1 = self.oper(d, l)
+            op2 = self.oper(d, l)
             display('op1: {0} op2: {1}'.format(op1, op2), PARSETREE_DEBUG)
-            return self.gforthBOPS(op1, op2, bop)
+            return self.gforthBOPS(op1, op2, bop, l)
 
         elif self.curToken.id == 'uop':
             uop = self.curToken.value
             display(d * self.tab + uop, PARSETREE)
             self.getNextToken()
-            op1 = self.oper(d)
-            return self.gforthUOPS(op1, uop)
+            op1 = self.oper(d, l)
+            return self.gforthUOPS(op1, uop, l)
         else:
             self.error('prefix operation {0} not found in grammar of oper'.format(self.curToken.id))
 
     # stmts -> ifstmts | whilestmts | letstmts | printsmts | (return oper)
-    def stmts(self, d):
+    def stmts(self, d, n = '', l = ''):
         if self.curToken.value == '(':
             self.lparen += 1
             display(d * self.tab + self.curToken.value, PARSETREE)
             self.getNextToken()
-            self.stmtsP(d + 1)
+            self.stmtsP(d + 1, n, l)
             # display(">> stmts -> curToken = " + self.curToken.value, PARSETREE_DEBUG)
             if self.curToken.value == ')':
                 self.rparen += 1
@@ -273,7 +283,7 @@ class Parser:
         else:
             self.error('stmts 2 error')
 
-    def stmtsP(self, d, n = ''):
+    def stmtsP(self, d, n = '', l = ''):
         # ifstmts -> (if expr expr) | (if expr exp expr)
         if self.curToken.value == 'if':
             stmt = self.curToken.value
@@ -281,14 +291,14 @@ class Parser:
             print ': {0}{1}'.format(stmt, self.ifc),
             self.ifc += 1
             self.getNextToken()
-            self.expr(d)
+            self.expr(d, l)
 
             # 'if' needs to be printed after condition for gforth syntax
             print 'if',
             self.expr(d)
             if self.curToken.value and self.curToken.value != ')':
                 print 'else',
-                self.expr(d)
+                self.expr(d, l)
 
             # Error if more than 3 args
             if self.curToken.value and self.curToken.value != ')':
@@ -307,7 +317,7 @@ class Parser:
             print ': {0}{1} begin'.format(stmt, self.whilec),
             self.whilec += 1
             self.getNextToken()
-            self.expr(d)
+            self.expr(d, l)
             print 'while',
             self.exprlist(d)
 
@@ -343,20 +353,24 @@ class Parser:
             display (d * self.tab + self.curToken.value, PARSETREE)
             self.getNextToken()
             eType = self.oper(d)
-            self.gforthSTDOUT(eType)
+            self.gforthSTDOUT(eType, l)
             if self.curToken.value and self.curToken.value != ')':
                 self.error()
         elif self.curToken.value == 'return':
             if n != '':
                 # need variable to set
                 #l = []
-                eType = self.oper(d, n)
+                self.getNextToken()
+                eType = self.oper(d, self.ft[n]['innards'])#, n)
+
                 #ft[n]['innards'].append(l)
 
                 # create return variable
                 # need to append to innards
-                gforthSetVar(ft[n][n + 'return'], eType)
-                ft[n]['innards'].append('exit')
+                self.gforthInitVar(n + 'return', eType)
+
+                self.gforthSetVar(n + 'return', eType, self.ft[n]['innards'])
+                self.ft[n]['innards'].append('exit')
             #else:
                 #self.error('return used without function')
         else:
@@ -375,8 +389,9 @@ class Parser:
             if self.curToken.id != 'id':
                 self.error('non-name in funlist')
             display(d * self.tab + self.curToken.value, PARSETREE)
-            n = self.curToken.value
+            n = self.curToken.value + self.curToken.value
             self.ft[n] = {'params' : [], 'paramtypes' : [], 'innards' : [], n + 'return' : ''}
+
 
             self.getNextToken()
             if self.curToken.id == 'id':
@@ -393,7 +408,6 @@ class Parser:
             display(d * self.tab + self.curToken.value, PARSETREE)
             self.getNextToken()
 
-            print self.curToken.value
             self.funtype(d, n)
 
             if self.curToken.value != ')':
@@ -408,9 +422,13 @@ class Parser:
             display(d * self.tab + self.curToken.value, PARSETREE)
             self.getNextToken()
 
+            # In case innards is empty
             if self.curToken.value != ')':
-                self.exprlist(d)
-                print ': {0} {1} ;'.format(n, ft[n]['innards']),
+                self.exprlist(d, n, self.ft[n]['innards'])
+                print ': {0}'.format(n),
+                for i in self.ft[n]['innards']:
+                    print '{0}'.format(i),
+                print ' ;',
 
         # varlist)
         else:
@@ -433,7 +451,7 @@ class Parser:
         if self.curToken.value in self.ft[n]['params']:
             self.error('duplicate parameter name')
         self.ft[n]['params'].append([self.curToken.value, ''])
-        print 'curtoken:' + self.curToken.value
+        #print 'curtoken:' + self.curToken.value
         self.getNextToken()
         if self.curToken.id == 'id':
             self.funlist(d, n)
@@ -444,7 +462,7 @@ class Parser:
             if not self.isType(self.curToken.value):
                 self.error('non-type given to funtype')
             try:
-                print self.curToken.value
+                #print self.curToken.value
                 if i == 0:
                     self.ft[n]['type'] = self.curToken.value
                 else:
@@ -489,24 +507,26 @@ class Parser:
         else:
             self.error()
 
-    def exprlist(self, d):
+    def exprlist(self, d, n = '', l = ''):
         # expr
-        self.expr(d)
+        self.expr(d, n, l)
         # expr exprlist
+        if l == '':
+            print 'nothing'
         display(">> exprlist -> expr -> " + self.curToken.value, PARSETREE_DEBUG )
         if (self.curToken.value == '(' and (self.isOper(self.peekToken.id) or self.peekToken.id == 'stmt')) or self.isTerminal(self.curToken.id):
             display(">> exprlist -> exprlist", PARSETREE_DEBUG)
-            self.exprlist(d)
+            self.exprlist(d, l)
 
-    def expr(self, d):
+    def expr(self, d, n = '', l = ''):
         display(">> expr: " + self.curToken.value + self.peekToken.value, PARSETREE_DEBUG)
         if self.curToken.value == '(' and self.isOper(self.peekToken.id):
-            self.oper(d)
+            self.oper(d, l)
         elif self.isTerminal(self.curToken.id):
             display(">> expr -> oper", PARSETREE_DEBUG)
-            self.oper(d)
+            self.oper(d, l)
         elif self.curToken.value == '(' and self.peekToken.id == 'stmt':
-            self.stmts(d)
+            self.stmts(d, n, l)
         else:
             self.error()
 
@@ -518,69 +538,71 @@ class Parser:
         else:
             self.error('variable {0} undefined and/or illegal type'.format(var))
 
-    def gforthSetVar(self, var, eType):
+    def gforthSetVar(self, var, eType, l = ''):
+        #print self.vt
+        #print self.ft
         if var in self.vt:
             varType = self.vt[var]
             if varType == eType:
-                print '{0} {1}'.format(var, gt[varType]['assign']),
+                self.output('{0} {1}'.format(var, gt[varType]['assign']), l)
             elif varType == 'real' and eType == 'int':
-                print 's>f {0} {1}'.format(var, gt[varType]['assign']),
+                self.output('s>f {0} {1}'.format(var, gt[varType]['assign']), l)
             else:
                 self.error('Type Mismatch: setting {0} variable to {1}'.format(varType, eType))
         else:
             self.error('variable {0} not initialized'.format(var))
 
-    def gforthUOPS(self, op1, uop):
+    def gforthUOPS(self, op1, uop, l = ''):
         # print '\nuop:' + str(op1)
         if (uop == 'sin' or uop == 'cos' or uop == 'tan') and op1 != 'real':
-            print 's>f ' + gt[uop],
+            self.output('s>f ' + gt[uop], l)
             return 'real'
         elif op1 == 'real':
             if uop == 'not':
-                print 'f' + gt[uop],
+                self.output('f' + gt[uop], l)
             else:
-                print gt[uop],
+                self.output(gt[uop], l)
         elif uop == 'not':
-            print gt[uop],
+            self.output(gt[uop], l)
         else:
-            print uop,
+            self.output(uop, l)
         return op1
 
-    def gforthBOPS(self, op1, op2, bop):
+    def gforthBOPS(self, op1, op2, bop, l = ''):
         if op1 == 'int' and op2 == 'int':
             # Don't change if-else orderings
             # Case where % is different for ints and floats
             if bop == '%':
-                print 'mod',
+                self.output('mod', l)
             elif bop == '^':
-                print 's>f s>f fswap f** f>s',
+                self.output('s>f s>f fswap f** f>s', l)
             elif bop == "!=":
-                print '<>',
+                self.output('<>', l)
             else:
-                print bop,
+                self.output(bop, l)
             return 'int'
         elif bop == 'and' or bop == 'or':
             if op1 == 'int' and op2 == 'real':
-                print 'f>s ' + bop,
+                self.output('f>s ' + bop, l)
             elif op1 == 'real' and op2 == 'int':
-                print 'f>s fswap ' + bop,
+                self.output('f>s fswap ' + bop, l)
             elif op1 == 'real' and op2 == 'real':
-                print 'f>s f>s fswap ' + bop,
+                self.output('f>s f>s fswap ' + bop, l)
             return 'int'
         elif op1 == 'int' and op2 == 'real':
-            print 's>f fswap ' + gt[bop],
+            self.output('s>f fswap ' + gt[bop], l)
             if self.isRelational(bop):
                 return 'int'
             else:
                 return 'real'
         elif op1 == 'real' and op2 == 'int':
-            print 's>f ' + gt[bop],
+            self.output('s>f ' + gt[bop], l)
             if self.isRelational(bop):
                 return 'int'
             else:
                 return 'real'
         elif op1 == 'real' and op2 == 'real':
-            print gt[bop],
+            self.output(gt[bop], l)
             if self.isRelational(bop):
                 return 'int'
             else:
@@ -589,19 +611,19 @@ class Parser:
             if bop != '+':
                 self.error()
             else:
-                print 's+',
+                self.output('s+', l)
             return 'string'
         else:
-            print bop,
+            self.output(bop, l)
             return op1
 
-    def gforthSTDOUT(self, op1):
+    def gforthSTDOUT(self, op1, l = ''):
         if op1 == 'int':
-            print '.',
+            self.output('.', l)
         elif op1 =='real':
-            print 'f.',
+            self.output('f.', l)
         elif op1 == 'string':
-            print 'type',
+            self.output('type', l)
 
     def isRelational(self, bop):
         return True if bop in ['=', '<', '<=', '>', '>=', '!='] else False

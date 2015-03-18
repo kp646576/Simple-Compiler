@@ -29,6 +29,7 @@ symbolTable = {
     'while'  : 'stmt',
     'let'    : 'stmt',
     'stdout' : 'stmt',
+    'return' : 'stmt',
 
     '('  : 'lparen',
     ')'  : 'rparen',
