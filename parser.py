@@ -270,8 +270,11 @@ class Parser:
         if self.curToken.value == '(':
             self.lparen += 1
             display(d * self.tab + self.curToken.value, PARSETREE)
+
             self.getNextToken()
+            print 'STMTS' + self.curToken.value
             self.stmtsP(d + 1, n, l)
+
             # display(">> stmts -> curToken = " + self.curToken.value, PARSETREE_DEBUG)
             if self.curToken.value == ')':
                 self.rparen += 1
@@ -361,12 +364,14 @@ class Parser:
                 # need variable to set
                 #l = []
                 self.getNextToken()
+                print n
                 eType = self.oper(d, self.ft[n]['innards'])#, n)
 
                 #ft[n]['innards'].append(l)
 
                 # create return variable
                 # need to append to innards
+                print 'this far yest?'
                 self.gforthInitVar(n + 'return', eType)
 
                 self.gforthSetVar(n + 'return', eType, self.ft[n]['innards'])
@@ -378,66 +383,81 @@ class Parser:
 
 
     # letstmtsP -> varlist) | (funlist) (funtype)) exprlist
+    # letstmtsP -> (name type) varlist | (name ...) (funtype)) exprlist
     def letstmtsP(self, d):
-        # (funlist) (funtype)) exprlist
         if self.curToken.value == '(':
             self.lparen += 1
-            display(d * self.tab + self.curToken.value, PARSETREE)
             self.getNextToken()
 
             # factor out the first value (function name)
             if self.curToken.id != 'id':
                 self.error('non-name in funlist')
-            display(d * self.tab + self.curToken.value, PARSETREE)
-            n = self.curToken.value + self.curToken.value
-            self.ft[n] = {'params' : [], 'paramtypes' : [], 'innards' : [], n + 'return' : ''}
+
+            print 'PEEK' + self.peekToken.value
+            # (name ...) (funtype)) exprlist
+            if self.peekToken.id == 'id':
+                n = self.curToken.value + self.curToken.value
+                self.ft[n] = {'params' : [], 'paramtypes' : [], 'innards' : [], n + 'return' : ''}
+                self.getNextToken()
+                self.letstmtsPP(d, n)
+
+            # (name type) | (name type) varlist
+            elif self.isType(self.peekToken.value):
+                print 'comes in'
+                self.varlist(d)
+
+                # closing inner let )
+                if self.curToken.value != ')':
+                    self.error('no closing parenthesis after let')
+                self.rparen += 1
+                self.getNextToken()
+            else:
+                self.error('neither varlist or letstmtsPP token found')
 
 
-            self.getNextToken()
-            if self.curToken.id == 'id':
-                self.funlist(d, n)
 
-            if self.curToken.value != ')':
-                self.error('no closing parenthesis after funlist')
-            self.rparen += 1
-            self.getNextToken()
 
-            if self.curToken.value != '(':
-                self.error('no starting parenthesis for funtype')
-            self.lparen += 1
-            display(d * self.tab + self.curToken.value, PARSETREE)
-            self.getNextToken()
+    # funlist) (funtype)) exprlist
+    def letstmtsPP(self, d, n):
+        if self.curToken.value != ')':
+            self.funlist(d, n)
 
-            self.funtype(d, n)
 
-            if self.curToken.value != ')':
-                self.error('no closing parenthesis after funtype')
-            self.rparen += 1
-            display(d * self.tab + self.curToken.value, PARSETREE)
-            self.getNextToken()
+        if self.curToken.value != ')':
+            self.error('no closing parenthesis after funlist')
+        self.rparen += 1
+        self.getNextToken()
 
-            if self.curToken.value != ')':
-                self.error('no closing parenthesis after inner let expression')
-            self.rparen += 1
-            display(d * self.tab + self.curToken.value, PARSETREE)
-            self.getNextToken()
+        if self.curToken.value != '(':
+            self.error('no starting parenthesis for funtype')
+        self.lparen += 1
+        display(d * self.tab + self.curToken.value, PARSETREE)
+        self.getNextToken()
 
-            # In case innards is empty
-            if self.curToken.value != ')':
-                self.exprlist(d, n, self.ft[n]['innards'])
-                print ': {0}'.format(n),
-                for i in self.ft[n]['innards']:
-                    print '{0}'.format(i),
-                print ' ;',
 
-        # varlist)
-        else:
-            self.varlist(d)
-            if self.curToken.value != ')':
-                self.error('no closing parenthesis after varlist')
-            self.rparen += 1
-            display(d * self.tab + self.curToken.value, PARSETREE)
-            self.getNextToken()
+        self.funtype(d, n)
+
+
+        if self.curToken.value != ')':
+            self.error('no closing parenthesis after funtype')
+        self.rparen += 1
+        display(d * self.tab + self.curToken.value, PARSETREE)
+        self.getNextToken()
+
+        if self.curToken.value != ')':
+            self.error('no closing parenthesis after inner let expression')
+        self.rparen += 1
+        display(d * self.tab + self.curToken.value, PARSETREE)
+        self.getNextToken()
+
+        # In case innards is empty
+        if self.curToken.value != ')':
+            self.exprlist(d, n, self.ft[n]['innards'])
+            print ': {0}'.format(n),
+            for i in self.ft[n]['innards']:
+                print '{0}'.format(i),
+            print ' ;',
+
 
 
     # funlist -> name | name funlist
@@ -458,11 +478,12 @@ class Parser:
 
     # funtype -> type | type funtype
     def funtype(self, d, n):
+        #print self.ft[n]['params']
         for i in range(len(self.ft[n]['params']) + 1):
             if not self.isType(self.curToken.value):
                 self.error('non-type given to funtype')
             try:
-                #print self.curToken.value
+                print self.curToken.value
                 if i == 0:
                     self.ft[n]['type'] = self.curToken.value
                 else:
@@ -477,35 +498,28 @@ class Parser:
 
     # varlist -> (name type) | (name type) varlist
     def varlist(self, d):
-        if self.curToken.value == '(':
-            self.lparen += 1
-            #print d * self.tab + self.curToken.value
+        if self.curToken.id == 'id':
+            var = self.curToken.value
             self.getNextToken()
-            if self.curToken.id == 'id':
-                #print (d + 1) * self.tab + self.curToken.value
-                var = self.curToken.value
+            if self.isType(self.curToken.value):
+                varType = self.curToken.value
+                self.gforthInitVar(var, varType)
                 self.getNextToken()
-                if self.isType(self.curToken.value):
-                    #print (d + 1) * self.tab + self.curToken.value
-                    varType = self.curToken.value
-                    self.gforthInitVar(var, varType)
+                if self.curToken.value == ')':
+                    self.rparen += 1
+                    #print d * self.tab + self.curToken.value
                     self.getNextToken()
-                    if self.curToken.value == ')':
-                        self.rparen += 1
-                        #print d * self.tab + self.curToken.value
-                        self.getNextToken()
-                        display(">> varlist: " + self.curToken.value, PARSETREE_DEBUG)
-                        if self.curToken.value == '(' and self.peekToken.id == 'id':
-                            display(">> varlist -> varlist", PARSETREE_DEBUG)
-                            self.varlist(d)
-                    else:
-                        self.error()
+                    display(">> varlist: " + self.curToken.value, PARSETREE_DEBUG)
+                    if self.curToken.value == '(' and self.peekToken.id == 'id':
+                        display(">> varlist -> varlist", PARSETREE_DEBUG)
+                        self.letstmtsP(d)
                 else:
                     self.error()
             else:
                 self.error()
         else:
             self.error()
+
 
     def exprlist(self, d, n = '', l = ''):
         # expr
@@ -516,17 +530,18 @@ class Parser:
         display(">> exprlist -> expr -> " + self.curToken.value, PARSETREE_DEBUG )
         if (self.curToken.value == '(' and (self.isOper(self.peekToken.id) or self.peekToken.id == 'stmt')) or self.isTerminal(self.curToken.id):
             display(">> exprlist -> exprlist", PARSETREE_DEBUG)
-            self.exprlist(d, l)
+            self.exprlist(d, n, l)
 
     def expr(self, d, n = '', l = ''):
-        display(">> expr: " + self.curToken.value + self.peekToken.value, PARSETREE_DEBUG)
         if self.curToken.value == '(' and self.isOper(self.peekToken.id):
             self.oper(d, l)
         elif self.isTerminal(self.curToken.id):
             display(">> expr -> oper", PARSETREE_DEBUG)
             self.oper(d, l)
         elif self.curToken.value == '(' and self.peekToken.id == 'stmt':
+            print 'ASDF' + self.peekToken.value
             self.stmts(d, n, l)
+            print 'ASDF' + self.peekToken.value
         else:
             self.error()
 
